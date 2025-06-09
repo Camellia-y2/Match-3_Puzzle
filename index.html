@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🍉果缤纷消消乐</title>
+    <!-- 动画库可用CDN -->
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"> -->
+    <!-- 字体库可用CDN -->
+    <!-- <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet"> -->
+    <!-- 本地样式表，使用相对路径 -->
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div class="background-decor">
+        <div class="bg-bubble bubble1"></div>
+        <div class="bg-bubble bubble2"></div>
+        <div class="bg-bubble bubble3"></div>
+        <div class="bg-bubble bubble4"></div>
+    </div>
+    <div class="game-frame animate__animated animate__fadeInUp">
+        <!-- 主页面 -->
+        <div id="mainMenu" class="game-page active">
+            <h1 class="game-title animate__animated animate__bounce">🍉果缤纷消消乐🍎</h1>
+            <p class="game-description">欢迎来到果缤纷消消乐！在这里，您将体验趣味十足的水果消除挑战。<br><br>建议使用谷歌浏览器喔，会有更好的游戏体验~</p>
+            <div class="main-menu-buttons">
+                <button class="cute-btn animate__animated animate__pulse" onclick="showDifficultyModal()">
+                    <span class="btn-icon">🎮</span> 开始游戏
+                </button>
+                <button class="cute-btn" onclick="showHelpModal()">
+                    <span class="btn-icon">❓</span> 游戏说明
+                </button>
+                <button class="cute-btn" onclick="showCreditsModal()">
+                    <span class="btn-icon">🌟</span> 关于我们
+                </button>
+            </div>
+        </div>
+        <!-- 游戏页面 -->
+        <div id="gameScreen" class="game-page">
+            <div class="game-header">
+                <button class="cute-btn back-btn" onclick="confirmExit()">← 退出</button>
+                <div class="game-stats">
+                    <span>剩余步数: <span id="moves">0</span></span>
+                    <span>目标分数: <span id="target">0</span></span>
+                </div>
+            </div>
+            <div class="score-bar-container">
+                <div class="score-bar">
+                    <div id="scoreProgress" class="score-progress"></div>
+                </div>
+                <span class="score-text">已获分数: <span id="score">0</span></span>
+            </div>
+            <div id="board"></div>
+            <!-- 小道具栏 -->
+            <div class="tools-bar">
+                <button id="shuffleBtn" class="cute-btn tool-btn" onclick="shuffleBoard()">
+                    <span class="btn-icon">🔀</span> 打乱
+                    <span class="tool-count" id="shuffleCount"> <span class="tool-count-bg">1</span></span>
+                    <span class="tool-cost tool-shuffle-cost">-50分</span>
+                </button>
+                <button id="addStepBtn" class="cute-btn tool-btn" onclick="addStep()">
+                    <span class="btn-icon">➕</span> 加步数
+                    <span class="tool-count" id="addStepCount"><span class="tool-count-bg">1</span></span>
+                    <span class="tool-cost">-70分</span>
+                </button>
+                <button id="undoBtn" class="cute-btn tool-btn" onclick="undoMove()">
+                    <span class="btn-icon">↩️</span> 撤销
+                    <span class="tool-count" id="undoCount"><span class="tool-count-bg">1</span></span>
+                </button>
+                <span id="shuffleTip" class="tool-tip"></span>
+            </div>
+        </div>
+        <!-- 难度选择模态框 -->
+        <div id="difficultyModal" class="modal">
+            <div class="modal-content">
+                <h2>选择难度</h2>
+                <div class="difficulty-buttons">
+                    <button class="cute-btn difficulty-btn" onclick="startGame('easy')">
+                        <span class="fruit-icon">🍒</span> 简单模式
+                    </button>
+                    <button class="cute-btn" onclick="startGame('medium')">
+                        <span class="fruit-icon">🍋</span> 中等模式
+                    </button>
+                    <button class="cute-btn" onclick="startGame('hard')">
+                        <span class="fruit-icon">🍍</span> 困难模式
+                    </button>
+                </div>
+                <button class="cute-btn" onclick="closeDifficultyModal()">取消</button>
+            </div>
+        </div>
+        <!-- 退出确认模态框 -->
+        <div id="exitModal" class="modal">
+            <div class="modal-content">
+                <h2>确认退出</h2>
+                <p>您确定要退出游戏吗？</p>
+                <div class="modal-buttons">
+                    <button class="cute-btn" onclick="exitGame()">确认</button>
+                    <button class="cute-btn" onclick="closeExitModal()">取消</button>
+                </div>
+            </div>
+        </div>
+        <!-- 游戏说明模态框 -->
+        <div id="helpModal" class="modal">
+            <div class="modal-content">
+                <h2>游戏说明</h2>
+                <p style="font-size:1.08rem;line-height:2;">
+                    玩法说明：交换相邻的水果，凑成三个或以上相同水果即可消除并得分。<br/>
+                    每种道具功能见按钮提示。
+                </p>
+                <button class="cute-btn" onclick="closeHelpModal()">关闭</button>
+            </div>
+        </div>
+        <!-- 关于我们模态框 -->
+        <div id="creditsModal" class="modal">
+            <div class="modal-content">
+                <h2 style="margin-bottom:0.3em;">关于我们</h2>
+                <div class="about-box">
+                  作者：每天开心（稀土掘金）<br/><br>
+                  美术来源：网络<br/><br>
+                  工具：Trae<br/><br>
+                  仅供学习交流使用。音效功能正在开发中...
+                </div>
+                <button class="cute-btn" onclick="closeCreditsModal()">关闭</button>
+              </div>
+        </div>
+        <!-- 游戏结束模态框 -->
+        <div id="gameOverModal" class="modal">
+            <div class="modal-content" id="gameOverContent"></div>
+        </div>
+    </div>
+    <!-- 音效文件全部使用本地相对路径 -->
+    <!-- <audio id="swapSound" src="../swap.mp3"></audio> 
+    <audio id="eliminateSound" src="../eliminate.mp3"></audio>
+    <audio id="invalidSound" src="../invalid.mp3"></audio>
+    <audio id="winSound" src="../win.mp3"></audio>
+    <audio id="loseSound" src="../lose.mp3"></audio> -->
+
+    <script src="./game.js"></script>
+
+    <div id="toolTipModal" class="modal">
+        <div class="modal-content" id="toolTipModalContent" style="padding: 22px 32px;">
+            <span id="toolTipModalMsg" style="font-size:1.18rem; color:#e84a5f;"></span>
+        </div>
+    </div>
+</body>
+</html>
