@@ -2,6 +2,8 @@
 <html>
 <head>
     <title>🍉果缤纷消消乐</title>
+    <!-- 添加 viewport 元标签 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- 动画库可用CDN -->
     <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"> -->
     <!-- 字体库可用CDN -->
@@ -20,7 +22,7 @@
         <!-- 主页面 -->
         <div id="mainMenu" class="game-page active">
             <h1 class="game-title animate__animated animate__bounce">🍉果缤纷消消乐🍎</h1>
-            <p class="game-description">欢迎来到果缤纷消消乐！在这里，您将体验趣味十足的水果消除挑战。<br><br>建议使用谷歌浏览器喔，会有更好的游戏体验~</p>
+            <p class="game-description">欢迎来到果缤纷消消乐！在这里，您将体验趣味十足的水果消除挑战。<br><br>建议使用谷歌浏览器并打开声音喔，会有更好的游戏体验~</p>
             <div class="main-menu-buttons">
                 <button class="cute-btn animate__animated animate__pulse" onclick="showDifficultyModal()">
                     <span class="btn-icon">🎮</span> 开始游戏
@@ -48,7 +50,9 @@
                 </div>
                 <span class="score-text">已获分数: <span id="score">0</span></span>
             </div>
+          
             <div id="board"></div>
+
             <!-- 小道具栏 -->
             <div class="tools-bar">
                 <button id="shuffleBtn" class="cute-btn tool-btn" onclick="shuffleBoard()">
@@ -114,9 +118,9 @@
                 <h2 style="margin-bottom:0.3em;">关于我们</h2>
                 <div class="about-box">
                   作者：每天开心（稀土掘金）<br/><br>
-                  美术来源：网络<br/><br>
+                  美术和音效来源：网络<br/><br>
                   工具：Trae<br/><br>
-                  仅供学习交流使用。音效功能正在开发中...
+                  仅供学习交流使用。
                 </div>
                 <button class="cute-btn" onclick="closeCreditsModal()">关闭</button>
               </div>
@@ -127,11 +131,11 @@
         </div>
     </div>
     <!-- 音效文件全部使用本地相对路径 -->
-    <!-- <audio id="swapSound" src="../swap.mp3"></audio> 
-    <audio id="eliminateSound" src="../eliminate.mp3"></audio>
-    <audio id="invalidSound" src="../invalid.mp3"></audio>
-    <audio id="winSound" src="../win.mp3"></audio>
-    <audio id="loseSound" src="../lose.mp3"></audio> -->
+    <audio id="swapSound" src="./swap.mp3"></audio> 
+    <audio id="eliminateSound" src="./eliminate.mp3"></audio>
+    <audio id="invalidSound" src="./invalid.mp3"></audio>
+    <audio id="winSound" src="./win.mp3"></audio>
+    <audio id="loseSound" src="./lose.mp3"></audio>
 
     <script src="./game.js"></script>
 

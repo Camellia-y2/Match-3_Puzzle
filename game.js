@@ -5,9 +5,9 @@ const difficulties = {
     hard:   { moves: 20, target: 1100 }
 };
 const FRUITS = {
-    easy:   ['🍎', '🍌', '🍊', '🍇', '🍉'],
-    medium: ['🍎', '🍌', '🍊', '🍇', '🍉', '🍓'],
-    hard:   ['🍎', '🍌', '🍊', '🍇', '🍉', '🍓', '🥭', '🍍']
+    easy:   ['🍎', '🍌', '🍒', '🍇', '🍉', '🥑'],
+    medium: ['🍎', '🍌', '🍒', '🍇', '🍉', '🥑' , '🍓','🥥'],
+    hard:   ['🍎', '🍌', '🍒', '🍇', '🍉','🥑', '🍓','🥝','🥥', '🫐', '🍈']
 };
 
 let gameState = {
@@ -66,7 +66,7 @@ function startGame(difficulty) {
     gameState.targetScore = difficulties[difficulty].target;
     gameState.selectedTile = null;
     gameIsOver = false;
-    gameState.size = { easy: 6, medium: 8, hard: 10 }[difficulty];
+    gameState.size = { easy: 6, medium: 8, hard: 9 }[difficulty];
     gameState.toolUsed = { shuffle: false, addStep: false, undo: false };
     gameState.prevState = null;
 
