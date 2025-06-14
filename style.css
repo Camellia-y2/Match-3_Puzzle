@@ -877,3 +877,13 @@ body {
     40%  { transform: scale(1.2); opacity: 1; }
     100% { transform: scale(0.5); opacity: 0; }
 }
+
+.five-line-tile {
+    box-shadow: 0 0 22px 6px #ffe3ee, 0 0 15px 6px #ffd6e0;
+    animation: five-line-pop 0.45s;
+}
+@keyframes five-line-pop {
+    0% { filter: brightness(2) scale(1.2);}
+    100% { filter: none scale(1);}
+}
+

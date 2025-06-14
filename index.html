@@ -7,6 +7,136 @@
     <!-- 字体库可用CDN -->
     <!-- <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap" rel="stylesheet"> -->
     <link rel="stylesheet" href="./style.css">
+    <style>
+    /* 右下角音乐播放器样式 */
+    #music-player-box {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        z-index: 9999;
+        background: rgba(255,255,255,0.89);
+        border-radius: 18px;
+        box-shadow: 0 2px 12px #ffd6e099, 0 0 1px #fff;
+        padding: 14px 16px 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: box-shadow 0.3s;
+    }
+    #music-player-box:hover {
+        box-shadow: 0 2px 24px #ffb6b99e, 0 0 2px #fff;
+    }
+    #mainMusicPlayer {
+        width: 180px;
+        height: 28px;
+        vertical-align: middle;
+    }
+    #music-player-box label {
+        font-size: 0.92em;
+        color: #ff6f91;
+        font-weight: bold;
+        margin-right: 7px;
+    }
+    @media (max-width: 600px) {
+      #music-player-box {
+        right: 6px;
+        bottom: 6px;
+        padding: 7px 7px 7px 10px;
+      }
+      #mainMusicPlayer {
+        width: 115px;
+      }
+    }
+    #super-music-fab {
+        position: fixed;
+        right: 26px;
+        bottom: 28px;
+        z-index: 9999;
+        width: 66px;
+        height: 66px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        user-select: none;
+        transition: filter .18s, box-shadow .18s;
+        }
+        #super-music-fab .music-glow {
+        position: absolute;
+        width: 100%; height: 100%; left:0; top:0;
+        border-radius: 50%;
+        filter: blur(6px);
+        z-index: 0;
+        pointer-events: none;
+        background: 
+            conic-gradient(from 0deg, #ff6f91 0%, #ffe3a3 20%, #b8ceff 40%, #ffe3ee 60%, #a1ffe3 80%, #ff6f91 100%);
+        opacity: 0.85;
+        animation: glow-rotate 4s linear infinite;
+        }
+        @keyframes glow-rotate {
+            0% { transform: rotate(0deg);}
+            100% { transform: rotate(360deg);}
+        }
+        #super-music-fab .music-icon-bg {
+            position: absolute;
+            width: 56px; height: 56px; left:5px; top:5px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.78);
+            box-shadow: 0 2px 16px #ffd6e0a0, 0 0 2px #fff;
+            z-index: 1;
+        }
+
+        #super-music-fab .music-icon {
+            position: relative;
+            z-index: 2;
+            width: 40px; height: 40px;
+            display: block;
+            will-change: transform;
+            transition: filter .15s;
+            filter: drop-shadow(0 1px 5px #ffe3ee90);
+        }
+        #super-music-fab.playing .music-icon {
+            animation: music-spin 2.2s linear infinite;
+        }
+        @keyframes music-spin {
+            0% { transform: rotate(0deg);}
+            100% { transform: rotate(360deg);}
+        }
+        #super-music-fab:active .music-icon-bg {
+             background: #ffe3a3;
+        }
+        #super-music-fab.paused .music-icon {
+            filter: grayscale(0.5) brightness(0.85);
+            animation-play-state: paused;
+        }
+        #super-music-fab.paused .music-glow {
+            opacity: 0.35;
+            animation-play-state: paused;
+        }
+        #super-music-fab .music-tip {
+            position: absolute; 
+            bottom: 70px; left: 50%; transform: translateX(-50%);
+            background: rgba(255,251,224,0.97);
+            color: #eb378e;
+            font-size: 1rem;
+            border-radius: 12px;
+            padding: 6px 20px;
+            box-shadow: 0 2px 10px #ffd6e0a0;
+            opacity: 0; pointer-events: none;
+            transition: opacity .22s;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        #super-music-fab.show-tip .music-tip {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        @media (max-width: 600px) {
+            #super-music-fab { right: 8px; bottom: 12px; width:48px; height:48px;}
+            #super-music-fab .music-icon-bg { width:38px; height:38px; left:5px; top:5px;}
+            #super-music-fab .music-glow { width:100%; height:100%;}
+            #super-music-fab .music-icon { width:26px; height:26px;}
+            #super-music-fab .music-tip { font-size: .92rem; padding: 4px 12px; bottom:52px;}
+        }
+    </style>
 </head>
 <body>
     <div class="background-decor">
@@ -19,7 +149,7 @@
         <!-- 主页面 -->
         <div id="mainMenu" class="game-page active">
             <h1 class="game-title">🍉果缤纷消消乐🍎</h1>
-            <p class="game-description">欢迎来到果缤纷消消乐！在这里，您将体验趣味十足的水果消除挑战。<br><br>建议使用谷歌浏览器喔，会有更好的游戏体验~</p>
+            <p class="game-description">欢迎来到果缤纷消消乐！在这里，您将体验趣味十足的水果消除挑战。<br><br>建议使用谷歌浏览器并打开音乐喔，会有更好的游戏体验~</p>
             <div class="main-menu-buttons">
                 <button class="cute-btn" onclick="showDifficultyModal()">
                     <span class="btn-icon">🎮</span> 开始游戏
@@ -133,11 +263,103 @@
     <audio id="invalidSound" src="./music/invalid.mp3"></audio>
     <audio id="winSound" src="./music/win.mp3"></audio>
     <audio id="loseSound" src="./music/lose.mp3"></audio> -->
+      <!-- 游戏音效文件 -->
+      <audio id="startSound" src="https://cdn.pixabay.com/audio/2021/08/04/audio_dea21d9092.mp3"></audio>
+      <audio id="swapSound" src="https://cdn.pixabay.com/audio/2025/04/06/audio_b260d21034.mp3"></audio>
+      <audio id="eliminate3Sound" src="https://cdn.pixabay.com/audio/2024/01/09/audio_28c453a8ff.mp3"></audio>
+      <audio id="eliminate45Sound" src="https://cdn.pixabay.com/audio/2021/08/04/audio_bf3620f48d.mp3"></audio>
+      <audio id="toolSound" src="https://cdn.pixabay.com/audio/2022/09/29/audio_a4b3f2fe44.mp3"></audio>
+      <audio id="loseSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_67eb0cc18a.mp3"></audio>
+      <audio id="winSound" src="https://cdn.pixabay.com/audio/2025/05/12/audio_582a9c9e72.mp3"></audio>
+      <audio id="clickSound" src="https://cdn.pixabay.com/audio/2025/05/13/audio_1e26b32472.mp3"></audio>
+      <audio id="shuffleBoardSound" src="https://cdn.pixabay.com/audio/2025/05/29/audio_71dbe67d89.mp3"></audio>
+
     <script src="./game.js"></script>
     <div id="toolTipModal" class="modal">
         <div class="modal-content" id="toolTipModalContent" style="padding: 22px 32px;">
             <span id="toolTipModalMsg" style="font-size:1.18rem; color:#e84a5f;"></span>
         </div>
     </div>
+
+    <!-- 右下角背景乐播放器 -->
+    <div id="super-music-fab" class="paused" title="播放/暂停背景音乐">
+        <div class="music-glow"></div>
+        <div class="music-icon-bg"></div>
+        <svg class="music-icon" viewBox="0 0 60 60">
+          <circle cx="30" cy="30" r="25" fill="#fff8"/>
+          <g>
+            <path d="M18 35V25a7 7 0 0 1 7-7h4v24a2 2 0 0 1-2 2h-2a7 7 0 0 1-7-7z" fill="#eb378e"/>
+            <ellipse cx="42" cy="30" rx="5" ry="13" fill="#ffd6e0"/>
+            <ellipse cx="42" cy="30" rx="2.7" ry="7.5" fill="#b8ceff"/>
+            <ellipse cx="42" cy="30" rx="1.1" ry="3" fill="#ffe3a3"/>
+          </g>
+            <circle cx="30" cy="30" r="8" fill="#fffbe0" fill-opacity="0.85"/>
+            <circle cx="30" cy="30" r="3.2" fill="#eb378e" fill-opacity="0.8"/>
+        </svg>
+        <span class="music-tip">点击播放/暂停</span>
+        <audio id="bgmAudio" src="https://cdn.pixabay.com/audio/2023/08/24/audio_ef2a967c26.mp3" loop preload="auto"></audio>
+      </div>
+
+    <script>
+        const fab = document.getElementById('super-music-fab');
+        const music = document.getElementById('bgmAudio');
+        let playing = false;
+        let tipTimer = null;
+
+        function showMusicTip(msg, time=900) {
+            const tip = fab.querySelector('.music-tip');
+            if (!tip) return;
+            tip.textContent = msg;
+            fab.classList.add('show-tip');
+            clearTimeout(tipTimer);
+            tipTimer = setTimeout(()=>fab.classList.remove('show-tip'), time);
+        }
+
+        function setFabState(isPlaying) {
+            fab.classList.toggle('playing', isPlaying);
+            fab.classList.toggle('paused', !isPlaying);
+        }
+
+        fab.addEventListener('click', () => {
+        if (music.paused) {
+            music.play();
+            showMusicTip('已播放');
+        } else {
+            music.pause();
+            showMusicTip('已暂停');
+        }
+        });
+
+        music.addEventListener('play', ()=> setFabState(true));
+        music.addEventListener('pause', ()=> setFabState(false));
+
+        fab.addEventListener('mouseenter', ()=> showMusicTip('点击播放/暂停',700));
+        fab.addEventListener('mouseleave', ()=> fab.classList.remove('show-tip'));
+
+        // 初始化
+        window.addEventListener('DOMContentLoaded', function(){
+            music.volume = 0.6;
+            setFabState(music && !music.paused);
+            music.play().catch(e=>{
+                showMusicTip('自动播放失败，请手动点击播放');
+                console.error('自动播放失败', e);
+            });
+        });
+
+        const btnSound = new Audio("https://cdn.pixabay.com/audio/2022/09/29/audio_a4b3f2fe44.mp3");
+btnSound.volume = 0.7;
+
+    // 给所有按钮添加点击音效
+    document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', function() {
+        try {
+            btnSound.currentTime = 0;
+            btnSound.play();
+        } catch(e){}
+        }, true); // 用true，确保优先于你自己的onclick执行
+    });
+    });
+    </script>
 </body>
 </html>

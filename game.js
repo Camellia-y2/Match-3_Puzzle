@@ -27,6 +27,25 @@ let gameIsOver = false;
 // 新增全局变量，避免重复打乱
 let shufflePending = false;
 
+// 音效播放函数升级
+function playAudio(type, extra) {
+    let audio;
+    if (type === 'start') audio = document.getElementById('startSound');
+    if (type === 'swap') audio = document.getElementById('swapSound');
+    if (type === 'eliminate') {
+        // extra: 匹配数
+        if (extra >= 4) audio = document.getElementById('eliminate45Sound');
+        else audio = document.getElementById('eliminate3Sound');
+    }
+    if (type === 'tool') audio = document.getElementById('toolSound');
+    if (type === 'win') audio = document.getElementById('winSound');
+    if (type === 'lose') audio = document.getElementById('loseSound');
+    if (type === 'click') audio = document.getElementById('clickSound');
+    if (type === 'invalid') audio = document.getElementById('eliminate3Sound');
+    if (type === 'shuffleBoard') audio = document.getElementById('shuffleBoardSound');
+    if (audio) { audio.currentTime = 0; audio.play(); }
+}
+
 // -------- 页面与流程 --------
 function showDifficultyModal() {
     document.getElementById('difficultyModal').classList.add('active');
@@ -46,8 +65,6 @@ function exitGame() {
     document.getElementById('gameScreen').classList.remove('active');
     document.getElementById('mainMenu').classList.add('active');
 }
-
-// 新增：游戏说明、关于我们模态框
 function showHelpModal() {
     document.getElementById('helpModal').classList.add('active');
 }
@@ -81,6 +98,7 @@ function startGame(difficulty) {
     updateUI();
     updateToolBtns();
     resetInactivityTimer();
+    playAudio('start');
 }
 
 // 生成棋盘（保证初始无三连）
@@ -123,6 +141,7 @@ function onTileClick(e) {
     const tileEl = e.currentTarget;
     const idx = parseInt(tileEl.dataset.index);
     const size = gameState.size;
+    playAudio('click');
     if (gameState.selectedTile === null) {
         tileEl.classList.add('selected');
         gameState.selectedTile = tileEl;
@@ -130,7 +149,6 @@ function onTileClick(e) {
         const firstIndex = parseInt(gameState.selectedTile.dataset.index);
         if (isAdjacent(firstIndex, idx, size)) {
             if (isValidSwap(firstIndex, idx, size)) {
-                // 保存撤销状态
                 savePrevState(firstIndex, idx);
                 swapTiles(firstIndex, idx);
                 playAudio('swap');
@@ -145,7 +163,6 @@ function onTileClick(e) {
                     checkGameEnd();
                 }, 200);
             } else {
-                // 交换不合法，shake动画+音效
                 tileEl.classList.add('shake');
                 playAudio('invalid');
                 setTimeout(() => tileEl.classList.remove('shake'), 350);
@@ -157,7 +174,6 @@ function onTileClick(e) {
     resetInactivityTimer();
 }
 
-// 撤销快照
 function savePrevState(i1, i2) {
     gameState.prevState = {
         board: [...gameState.board],
@@ -168,15 +184,12 @@ function savePrevState(i1, i2) {
     };
 }
 
-// 判断相邻
 function isAdjacent(a, b, size) {
     const rowA = Math.floor(a / size), colA = a % size;
     const rowB = Math.floor(b / size), colB = b % size;
     return (Math.abs(rowA - rowB) === 1 && colA === colB) ||
            (Math.abs(colA - colB) === 1 && rowA === rowB);
 }
-
-// 交换并更新DOM
 function swapTiles(i1, i2) {
     [gameState.board[i1], gameState.board[i2]] = [gameState.board[i2], gameState.board[i1]];
     const tiles = document.getElementsByClassName('tile');
@@ -190,8 +203,6 @@ function swapTiles(i1, i2) {
     }, 350);
     resetInactivityTimer();
 }
-
-// 检查交换是否能消除
 function isValidSwap(i1, i2, size) {
     [gameState.board[i1], gameState.board[i2]] = [gameState.board[i2], gameState.board[i1]];
     const valid = checkMatches(true);
@@ -199,9 +210,120 @@ function isValidSwap(i1, i2, size) {
     return valid;
 }
 
-// 检查消除（升级版）：支持横/竖四连消整行/整列，五连变五彩水果
+// --- 五连“十字消除”实现 ---
+function createFiveLineTile(idx, fruit) {
+    const tiles = document.getElementsByClassName('tile');
+    tiles[idx].classList.add('five-line-tile');
+    setTimeout(() => {
+        tiles[idx].classList.remove('five-line-tile');
+    }, 450);
+}
 
-let specialTiles = {};
+function checkMatches(isPreview = false) {
+    const { board, size } = gameState;
+    let matches = new Set();
+    let rowSpecial = new Set();
+    let colSpecial = new Set();
+    let fiveLineSpecial = [];
+    // 横向
+    for(let row = 0; row < size; row++) {
+        let count = 1;
+        for(let col = 1; col < size; col++) {
+            const cur = row * size + col;
+            const prev = row * size + (col - 1);
+            if (board[cur] && board[cur] === board[prev]) {
+                count++;
+                if (count >= 3 && col === size - 1) {
+                    for (let k = 0; k < count; k++) matches.add(cur - k);
+                }
+            } else {
+                if (count >= 3) for (let k = 1; k <= count; k++) matches.add(prev - (k - 1));
+                if (!isPreview && count === 4) rowSpecial.add(row * size + col - 2);
+                if (!isPreview && count >= 5) {
+                    let mid = row * size + col - Math.floor(count/2);
+                    fiveLineSpecial.push(mid);
+                }
+                count = 1;
+            }
+        }
+        if (!isPreview && count === 4) rowSpecial.add(row * size + size - 2);
+        if (!isPreview && count >= 5) {
+            let mid = row * size + size - Math.floor(count/2) - 1;
+            fiveLineSpecial.push(mid);
+        }
+    }
+    // 纵向
+    for(let col = 0; col < size; col++) {
+        let count = 1;
+        for(let row = 1; row < size; row++) {
+            const cur = row * size + col;
+            const prev = (row - 1) * size + col;
+            if (board[cur] && board[cur] === board[prev]) {
+                count++;
+                if (count >= 3 && row === size - 1) {
+                    for (let k = 0; k < count; k++) matches.add(cur - k * size);
+                }
+            } else {
+                if (count >= 3) for (let k = 1; k <= count; k++) matches.add(prev - (k - 1) * size);
+                if (!isPreview && count === 4) colSpecial.add((row - 2) * size + col);
+                if (!isPreview && count >= 5) {
+                    let mid = (row - Math.floor(count/2)) * size + col;
+                    fiveLineSpecial.push(mid);
+                }
+                count = 1;
+            }
+        }
+        if (!isPreview && count === 4) colSpecial.add((size - 2) * size + col);
+        if (!isPreview && count >= 5) {
+            let mid = (size - Math.floor(count/2) - 1) * size + col;
+            fiveLineSpecial.push(mid);
+        }
+    }
+    // 四连：整行/整列全消
+    if (!isPreview && (rowSpecial.size > 0 || colSpecial.size > 0)) {
+        let fullLine = new Set();
+        for(const idx of rowSpecial) {
+            let row = Math.floor(idx / size);
+            for(let col=0; col<size; col++) fullLine.add(row * size + col);
+        }
+        for(const idx of colSpecial) {
+            let col = idx % size;
+            for(let row=0; row<size; row++) fullLine.add(row * size + col);
+        }
+        fullLine.forEach(idx => matches.add(idx));
+        showLineEffect && showLineEffect([...rowSpecial], [...colSpecial]);
+    }
+    // 五连：以最中间那个点的行列全部消除
+    if (!isPreview && fiveLineSpecial.length > 0) {
+        let fullCross = new Set();
+        for(const idx of fiveLineSpecial) {
+            let row = Math.floor(idx / size);
+            let col = idx % size;
+            for(let c=0; c<size; c++) fullCross.add(row * size + c);
+            for(let r=0; r<size; r++) fullCross.add(r * size + col);
+            createFiveLineTile(idx, board[idx]);
+        }
+        fullCross.forEach(idx => matches.add(idx));
+        showLineEffect && showLineEffect(fiveLineSpecial, fiveLineSpecial);
+    }
+    if (!isPreview && matches.size > 0) {
+        const tiles = document.getElementsByClassName('tile');
+        let matchCount = matches.size;
+        playAudio('eliminate', matchCount);
+        matches.forEach(idx => {
+            board[idx] = null;
+            tiles[idx].textContent = '';
+            tiles[idx].classList.add('eliminate');
+        });
+        setTimeout(() => {
+            matches.forEach(idx => {
+                tiles[idx].classList.remove('eliminate');
+            });
+        }, 400);
+        calculateScore && calculateScore(matches.size);
+    }
+    return matches.size > 0 || (!isPreview && fiveLineSpecial.length > 0);
+}
 
 function showLineEffect(rowSpecialArr, colSpecialArr) {
     const tiles = document.getElementsByClassName('tile');
@@ -221,135 +343,6 @@ function showLineEffect(rowSpecialArr, colSpecialArr) {
             setTimeout(() => tiles[i].classList.remove('col-effect'), 450);
         }
     }
-}
-
-function createRainbowTile(idx, fruit) {
-    const tiles = document.getElementsByClassName('tile');
-    gameState.board[idx] = fruit;
-    specialTiles[idx] = { type: 'rainbow', fruit, colorful: true };
-    tiles[idx].classList.add('rainbow-tile');
-    tiles[idx].setAttribute('data-rainbow', '1');
-    setTimeout(() => { tiles[idx].classList.remove('eliminate'); }, 450);
-}
-
-function checkMatches(isPreview = false) {
-    const { board, size } = gameState;
-    let matches = new Set();
-    let rowSpecial = new Set(); // 横四连
-    let colSpecial = new Set(); // 竖四连
-    let rainbowSpecial = [];    // 五连
-
-    // 横向
-    for(let row = 0; row < size; row++) {
-        let count = 1;
-        for(let col = 1; col < size; col++) {
-            const cur = row * size + col;
-            const prev = row * size + (col - 1);
-            if (board[cur] && board[cur] === board[prev]) {
-                count++;
-                if (count >= 3 && col === size - 1) {
-                    for (let k = 0; k < count; k++) matches.add(cur - k);
-                }
-            } else {
-                if (count >= 3) for (let k = 1; k <= count; k++) matches.add(prev - (k - 1));
-                // 四连
-                if (!isPreview && count === 4) rowSpecial.add(row * size + col - 2);
-                // 五连及以上
-                if (!isPreview && count >= 5) {
-                    let rainbowIdx = row * size + col - Math.floor(count/2);
-                    rainbowSpecial.push({ index: rainbowIdx, fruit: board[rainbowIdx] });
-                }
-                count = 1;
-            }
-        }
-        // 结尾四五连
-        if (!isPreview && count === 4) rowSpecial.add(row * size + size - 2);
-        if (!isPreview && count >= 5) {
-            let rainbowIdx = row * size + size - Math.floor(count/2) - 1;
-            rainbowSpecial.push({ index: rainbowIdx, fruit: board[rainbowIdx] });
-        }
-    }
-    // 纵向
-    for(let col = 0; col < size; col++) {
-        let count = 1;
-        for(let row = 1; row < size; row++) {
-            const cur = row * size + col;
-            const prev = (row - 1) * size + col;
-            if (board[cur] && board[cur] === board[prev]) {
-                count++;
-                if (count >= 3 && row === size - 1) {
-                    for (let k = 0; k < count; k++) matches.add(cur - k * size);
-                }
-            } else {
-                if (count >= 3) for (let k = 1; k <= count; k++) matches.add(prev - (k - 1) * size);
-                // 四连
-                if (!isPreview && count === 4) colSpecial.add((row - 2) * size + col);
-                // 五连及以上
-                if (!isPreview && count >= 5) {
-                    let rainbowIdx = (row - Math.floor(count/2)) * size + col;
-                    rainbowSpecial.push({ index: rainbowIdx, fruit: board[rainbowIdx] });
-                }
-                count = 1;
-            }
-        }
-        if (!isPreview && count === 4) colSpecial.add((size - 2) * size + col);
-        if (!isPreview && count >= 5) {
-            let rainbowIdx = (size - Math.floor(count/2) - 1) * size + col;
-            rainbowSpecial.push({ index: rainbowIdx, fruit: board[rainbowIdx] });
-        }
-    }
-
-    // 四连：整行/整列全消
-    if (!isPreview && (rowSpecial.size > 0 || colSpecial.size > 0)) {
-        let fullLine = new Set();
-        for(const idx of rowSpecial) {
-            let row = Math.floor(idx / size);
-            for(let col=0; col<size; col++) fullLine.add(row * size + col);
-        }
-        for(const idx of colSpecial) {
-            let col = idx % size;
-            for(let row=0; row<size; row++) fullLine.add(row * size + col);
-        }
-        fullLine.forEach(idx => matches.add(idx));
-        showLineEffect && showLineEffect([...rowSpecial], [...colSpecial]); // 可选特效
-    }
-
-    // 五连：生成五彩水果
-    if (!isPreview && rainbowSpecial.length > 0) {
-        for(const obj of rainbowSpecial) {
-            if (typeof specialTiles === 'object') {
-                specialTiles[obj.index] = { type: 'rainbow', fruit: obj.fruit, colorful: true };
-            }
-        }
-    }
-
-    if (!isPreview && matches.size > 0) {
-        // 消除动画
-        const tiles = document.getElementsByClassName('tile');
-        matches.forEach(idx => {
-            if (typeof specialTiles === 'object' && specialTiles[idx]?.type === 'rainbow') return;
-            board[idx] = null;
-            tiles[idx].textContent = '';
-            tiles[idx].classList.add('eliminate');
-        });
-        playAudio && playAudio('eliminate');
-        setTimeout(() => {
-            matches.forEach(idx => {
-                const tiles = document.getElementsByClassName('tile');
-                tiles[idx].classList.remove('eliminate');
-            });
-        }, 400);
-        calculateScore && calculateScore(matches.size);
-    }
-
-    // 五连后生成五彩水果
-    if (!isPreview && typeof createRainbowTile === 'function' && rainbowSpecial.length > 0) {
-        for(const obj of rainbowSpecial) {
-            createRainbowTile(obj.index, obj.fruit);
-        }
-    }
-
-    return matches.size > 0 || (!isPreview && rainbowSpecial.length > 0);
 }
 
 function calculateScore(cnt) {
@@ -376,7 +369,6 @@ function fillEmptyTiles() {
                 write--;
             }
         }
-        // 顶部补新
         for(let row = write; row >= 0; row--) {
             let idx = row * size + col;
             board[idx] = getRandomFruit(difficulty);
@@ -390,7 +382,6 @@ function fillEmptyTiles() {
             setTimeout(fillEmptyTiles, 350);
         }
     }, 370);
-    // 每次补齐后检测是否无可消除
     setTimeout(() => {
         if (!gameIsOver) {
             checkNoPossibleMove();
@@ -399,29 +390,15 @@ function fillEmptyTiles() {
     resetInactivityTimer();
 }
 
-// 随机水果
 function getRandomFruit(difficulty) {
     const arr = FRUITS[difficulty];
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// 音效
-function playAudio(type) {
-    let audio;
-    if (type === 'swap') audio = document.getElementById('swapSound');
-    if (type === 'eliminate') audio = document.getElementById('eliminateSound');
-    if (type === 'invalid') audio = document.getElementById('invalidSound');
-    if (type === 'win') audio = document.getElementById('winSound');
-    if (type === 'lose') audio = document.getElementById('loseSound');
-    if (audio) { audio.currentTime = 0; audio.play(); }
-}
-
-// UI更新
 function updateUI() {
     document.getElementById('score').textContent = gameState.score;
     document.getElementById('moves').textContent = gameState.movesLeft;
     document.getElementById('target').textContent = gameState.targetScore;
-    // 更新进度条
     const progressBar = document.getElementById('scoreProgress');
     if (progressBar) {
         let percent = 0;
@@ -433,7 +410,6 @@ function updateUI() {
     updateToolBtns();
 }
 
-// 检查游戏结束
 function checkGameEnd() {
     if (gameIsOver) return;
     if (gameState.score >= gameState.targetScore) {
@@ -447,8 +423,6 @@ function checkGameEnd() {
         disableBoard();
     }
 }
-
-// 禁用棋盘
 function disableBoard() {
     const tiles = document.getElementsByClassName('tile');
     for (let i = 0; i < tiles.length; i++) {
@@ -456,8 +430,6 @@ function disableBoard() {
         tiles[i].style.pointerEvents = 'none';
     }
 }
-
-// 临时禁用棋盘（自动打乱时用）
 function disableBoardTemp() {
     const tiles = document.getElementsByClassName('tile');
     for (let i = 0; i < tiles.length; i++) {
@@ -470,14 +442,9 @@ function enableBoardTemp() {
         tiles[i].style.pointerEvents = '';
     }
 }
-
-// 游戏结束模态框
 function showGameOverModal(isWin) {
-    if (isWin) {
-        playAudio('win');
-    } else {
-        playAudio('lose');
-    }
+    if (isWin) playAudio('win');
+    else playAudio('lose');
     const modal = document.getElementById('gameOverModal');
     const content = document.getElementById('gameOverContent');
     content.innerHTML = `
@@ -498,11 +465,9 @@ function updateToolBtns() {
     document.getElementById('shuffleBtn').disabled = gameState.toolUsed.shuffle || gameIsOver || gameState.score < 50;
     document.getElementById('addStepBtn').disabled = gameState.toolUsed.addStep || gameIsOver || gameState.score < 70;
     document.getElementById('undoBtn').disabled = gameState.toolUsed.undo || gameIsOver || !gameState.prevState;
-
     const tip = document.getElementById('shuffleTip');
     if (tip) tip.textContent = '';
 }
-
 // 打乱道具
 function shuffleBoard() {
     if (gameState.shuffling || gameIsOver || gameState.toolUsed.shuffle || shufflePending) return;
@@ -511,6 +476,7 @@ function shuffleBoard() {
         return;
     }
     gameState.toolUsed.shuffle = true;
+    playAudio('shuffleBoard');
     let arr = gameState.board.filter(x=>x);
     for (let i = arr.length - 1; i > 0; i--) {
         let j = Math.floor(Math.random() * (i + 1));
@@ -534,8 +500,6 @@ function shuffleBoard() {
         updateToolBtns();
     }, 400);
 }
-
-// 加步数道具
 function addStep() {
     if (gameState.toolUsed.addStep || gameIsOver) return;
     if (gameState.score < 70) {
@@ -546,13 +510,11 @@ function addStep() {
     gameState.score -= 70;
     if (gameState.score < 0) gameState.score = 0;
     gameState.movesLeft += 3;
-    playAudio('swap');
+    playAudio('tool');
     updateUI();
     showToolTip('已增加3步');
     setTimeout(updateToolBtns, 1600);
 }
-
-// 撤销道具，不扣分
 function undoMove() {
     if (gameState.toolUsed.undo || gameIsOver) return;
     if (!gameState.prevState) {
@@ -560,21 +522,18 @@ function undoMove() {
         return;
     }
     gameState.toolUsed.undo = true;
-
     gameState.board = [...gameState.prevState.board];
     gameState.score = gameState.prevState.score;
     gameState.movesLeft = gameState.prevState.movesLeft;
-
     const tiles = document.getElementsByClassName('tile');
     for(let i=0;i<gameState.board.length;i++) {
         tiles[i].textContent = gameState.board[i];
     }
-    playAudio('swap');
+    playAudio('tool');
     updateUI();
     showToolTip('已撤销上一步并加1步');
     setTimeout(updateToolBtns, 1600);
 }
-
 function showToolTip(msg) {
     const modal = document.getElementById('toolTipModal');
     const msgSpan = document.getElementById('toolTipModalMsg');
@@ -587,29 +546,16 @@ function showToolTip(msg) {
     }, 1000);
 }
 
-// 难度对应参数
-const size = 6;
-const tileSize = 52;
-
-const board = document.getElementById('board');
-board.style.setProperty('--board-size', size);
-board.style.setProperty('--tile-size', tileSize + 'px');
-
-// ===== 新增功能：自动提示、无可消除自动打乱、粒子背景 =====
+// ===== 自动提示&无解检测 =====
 let inactivityTimer = null;
 let hintTiles = [];
 let hintActive = false;
-
-// 仅在点击后重置计时器
 function resetInactivityTimer() {
     clearTimeout(inactivityTimer);
-    // 只要在游戏页面且未游戏结束，且无提示高亮时才重新计时
     if (!gameIsOver && document.getElementById('gameScreen').classList.contains('active') && !hintActive) {
         inactivityTimer = setTimeout(showHintIfPossible, 5000);
     }
 }
-
-// 5秒未点击后提示
 function showHintIfPossible() {
     let hint = findHint(gameState.board, gameState.size, gameState.difficulty);
     if (hint && hint.length === 2) {
@@ -620,8 +566,6 @@ function showHintIfPossible() {
         hintActive = true;
     }
 }
-
-// 只有再次点击方块才消除提示
 function clearHintTiles() {
     if (hintTiles.length) {
         const tiles = document.getElementsByClassName('tile');
@@ -630,7 +574,6 @@ function clearHintTiles() {
     }
     hintActive = false;
 }
-
 function findHint(board, size, difficulty) {
     for (let i = 0; i < board.length; i++) {
         const row = Math.floor(i / size), col = i % size;
@@ -650,7 +593,6 @@ function findHint(board, size, difficulty) {
     }
     return null;
 }
-
 function checkMatchPreview(board, size) {
     for (let row = 0; row < size; row++) {
         let count = 1;
@@ -682,8 +624,6 @@ function checkMatchPreview(board, size) {
     }
     return false;
 }
-
-// 检测无可消除并自动打乱
 function checkNoPossibleMove() {
     if (shufflePending || gameIsOver) return;
     if (!findHint(gameState.board, gameState.size, gameState.difficulty)) {
@@ -694,7 +634,6 @@ function checkNoPossibleMove() {
             doBoardShuffleAnimation();
             setTimeout(() => {
                 performAutoShuffle();
-                // 再次检测，如果还没有可消除，递归继续打乱
                 if (!findHint(gameState.board, gameState.size, gameState.difficulty)) {
                     setTimeout(checkNoPossibleMove, 500);
                 } else {
@@ -705,10 +644,9 @@ function checkNoPossibleMove() {
         }, 1100);
     }
 }
-
-// 打乱动画
 function doBoardShuffleAnimation() {
     const tiles = document.getElementsByClassName('tile');
+    playAudio('shuffleBoard');
     for (let i = 0; i < tiles.length; i++) {
         tiles[i].classList.add('shuffle-anim');
     }
@@ -718,8 +656,6 @@ function doBoardShuffleAnimation() {
         }
     }, 600);
 }
-
-// 真正打乱
 function performAutoShuffle() {
     let arr = gameState.board.filter(x => x);
     for (let i = arr.length - 1; i > 0; i--) {
@@ -735,22 +671,19 @@ function performAutoShuffle() {
     }
 }
 
-// 事件绑定
 document.addEventListener('DOMContentLoaded', function() {
-    // 只监听点击事件用于重置计时器
     const gameScreen = document.getElementById('gameScreen');
     if (gameScreen) {
         gameScreen.addEventListener('mousedown', resetInactivityTimer, true);
         gameScreen.addEventListener('touchstart', resetInactivityTimer, true);
     }
 });
-// 取消setInterval定时检测（已用消除后自动检测实现）
-
 ['mousedown', 'touchstart', 'keydown'].forEach(evt => {
     document.addEventListener(evt, resetInactivityTimer, true);
 });
 
-// ...（粒子背景与渐变背景等未动）...
+// ======= 粒子背景与渐变背景略，省略不变 =====
+
 // ======= 粒子背景 =======
 (function () {
     const canvas = document.createElement('canvas');
@@ -792,7 +725,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function animate() {
         ctx.clearRect(0, 0, w, h);
-        // 粒子
         for (let i = 0; i < PARTICLE_NUM; i++) {
             const p = particles[i];
             ctx.globalAlpha = p.alpha;
@@ -805,7 +737,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (p.x > w + 30) p.x = -10, p.y = Math.random() * h;
             if (p.y < -20 || p.y > h + 20) p.y = Math.random() * h;
         }
-        // 连线
         ctx.globalAlpha = 0.08;
         for (let i = 0; i < PARTICLE_NUM; i++) {
             for (let j = i + 1; j < PARTICLE_NUM; j++) {
@@ -853,7 +784,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', resize);
     resize();
 
-    // 多个彩色渐变气泡，随时间漂浮
     const bubbleNum = 7;
     const bubbles = [];
     const palette = [
@@ -909,8 +839,3 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     animate();
 })();
-
-// ===== END =====
-
-// ===== END =====
-
