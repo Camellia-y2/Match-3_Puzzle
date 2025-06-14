@@ -820,3 +820,60 @@ body {
     min-height: 44px;
     /* 确保触摸友好 */
 }
+.tile.shuffle-anim {
+    animation: tile-shuffle 0.6s;
+    background: #ffe3a3 !important;
+    box-shadow: 0 0 18px #ffe3a3, 0 0 2px #fff;
+}
+@keyframes tile-shuffle {
+    0% { transform: scale(1) rotate(0deg);}
+    25% { transform: scale(0.92) rotate(-5deg);}
+    50% { transform: scale(1.12) rotate(7deg);}
+    75% { transform: scale(0.96) rotate(-3deg);}
+    100% { transform: scale(1) rotate(0deg);}
+}
+
+/* 五连生成的五彩水果动画边框 */
+.rainbow-tile {
+    border: 3px solid;
+    border-image: linear-gradient(135deg, #ff3cac 0%, #784ba0 25%, #2b86c5 50%, #42e695 75%, #fffbe0 100%);
+    border-image-slice: 1;
+    box-shadow: 0 0 8px 3px #ffd6e0a0, 0 0 0 3px #fffbe0b0 inset;
+    animation: rainbow-border 1.5s linear infinite;
+    position: relative;
+}
+@keyframes rainbow-border {
+    0%   { border-image-source: linear-gradient(135deg, #ff3cac, #784ba0, #2b86c5, #42e695, #fffbe0);}
+    100% { border-image-source: linear-gradient(495deg, #ff3cac, #784ba0, #2b86c5, #42e695, #fffbe0);}
+}
+
+/* 横向消除高亮 */
+.line-effect {
+    box-shadow: 0 0 18px 3px #ffe3ee, 0 0 8px 2px #ffd6e0;
+    background: linear-gradient(90deg, #ffe3ee99 0%, #fffbe0 100%);
+    animation: line-flash 0.45s;
+}
+
+/* 纵向消除高亮 */
+.col-effect {
+    box-shadow: 0 0 18px 3px #b8ceff, 0 0 8px 2px #a1ffe3;
+    background: linear-gradient(180deg, #b8ceff99 0%, #fffbe0 100%);
+    animation: line-flash 0.45s;
+}
+
+@keyframes line-flash {
+    0%   { filter: brightness(2) blur(2px);}
+    80%  { filter: brightness(1.1) blur(0.5px);}
+    100% { filter: none;}
+}
+
+/* 可选：被五彩水果消除时的动画 */
+.rainbow-eliminate {
+    background: repeating-radial-gradient(circle, #fffbe0 10%, #ff3cac 25%, #784ba0 40%, #2b86c5 55%, #42e695 70%, transparent 100%);
+    animation: rainbow-pop 0.7s ease;
+}
+@keyframes rainbow-pop {
+    0%   { transform: scale(1); opacity: 1; }
+    40%  { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(0.5); opacity: 0; }
+}

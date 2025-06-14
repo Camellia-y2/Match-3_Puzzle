@@ -7,7 +7,7 @@ const difficulties = {
 const FRUITS = {
     easy:   ['🍎', '🍌', '🍒', '🍇', '🍉', '🥑'],
     medium: ['🍎', '🍌', '🍒', '🍇', '🍉', '🥑' , '🍓','🥥'],
-    hard:   ['🍎', '🍌', '🍒', '🍇', '🍉','🥑', '🍓','🥝','🥥', '🫐', '🍈']
+    hard:   ['🍎', '🍌', '🍒', '🍇', '🍉','🥑', '🍓','🥝','🥥', '🍊', '🍈']
 };
 
 let gameState = {
@@ -23,6 +23,9 @@ let gameState = {
     prevState: null // for undo
 };
 let gameIsOver = false;
+
+// 新增全局变量，避免重复打乱
+let shufflePending = false;
 
 // -------- 页面与流程 --------
 function showDifficultyModal() {
@@ -77,6 +80,7 @@ function startGame(difficulty) {
     generateBoard();
     updateUI();
     updateToolBtns();
+    resetInactivityTimer();
 }
 
 // 生成棋盘（保证初始无三连）
@@ -109,14 +113,13 @@ function generateBoard() {
         tile.textContent = tiles[i];
         tile.addEventListener('click', onTileClick);
         boardEl.appendChild(tile);
-            
     }
-    
 }
 
 // 方块点击事件
 function onTileClick(e) {
-    if (gameState.shuffling || gameIsOver) return;
+    clearHintTiles();
+    if (gameState.shuffling || gameIsOver || shufflePending) return;
     const tileEl = e.currentTarget;
     const idx = parseInt(tileEl.dataset.index);
     const size = gameState.size;
@@ -132,8 +135,6 @@ function onTileClick(e) {
                 swapTiles(firstIndex, idx);
                 playAudio('swap');
                 gameState.movesLeft--;
-                // 移除消耗分数的代码
-                // gameState.score -= 10;
                 updateUI();
                 setTimeout(() => {
                     if (checkMatches()) {
@@ -153,10 +154,11 @@ function onTileClick(e) {
         gameState.selectedTile.classList.remove('selected');
         gameState.selectedTile = null;
     }
+    resetInactivityTimer();
 }
 
+// 撤销快照
 function savePrevState(i1, i2) {
-    // 只保存撤销一次的快照
     gameState.prevState = {
         board: [...gameState.board],
         score: gameState.score,
@@ -186,6 +188,7 @@ function swapTiles(i1, i2) {
         tiles[i1].classList.remove('animate__pulse');
         tiles[i2].classList.remove('animate__pulse');
     }, 350);
+    resetInactivityTimer();
 }
 
 // 检查交换是否能消除
@@ -196,10 +199,46 @@ function isValidSwap(i1, i2, size) {
     return valid;
 }
 
-// 检查消除，只检测直线
+// 检查消除（升级版）：支持横/竖四连消整行/整列，五连变五彩水果
+
+let specialTiles = {};
+
+function showLineEffect(rowSpecialArr, colSpecialArr) {
+    const tiles = document.getElementsByClassName('tile');
+    for(const idx of rowSpecialArr) {
+        let row = Math.floor(idx / gameState.size);
+        for(let col=0; col<gameState.size; col++) {
+            let i = row * gameState.size + col;
+            tiles[i].classList.add('line-effect');
+            setTimeout(() => tiles[i].classList.remove('line-effect'), 450);
+        }
+    }
+    for(const idx of colSpecialArr) {
+        let col = idx % gameState.size;
+        for(let row=0; row<gameState.size; row++) {
+            let i = row * gameState.size + col;
+            tiles[i].classList.add('col-effect');
+            setTimeout(() => tiles[i].classList.remove('col-effect'), 450);
+        }
+    }
+}
+
+function createRainbowTile(idx, fruit) {
+    const tiles = document.getElementsByClassName('tile');
+    gameState.board[idx] = fruit;
+    specialTiles[idx] = { type: 'rainbow', fruit, colorful: true };
+    tiles[idx].classList.add('rainbow-tile');
+    tiles[idx].setAttribute('data-rainbow', '1');
+    setTimeout(() => { tiles[idx].classList.remove('eliminate'); }, 450);
+}
+
 function checkMatches(isPreview = false) {
     const { board, size } = gameState;
     let matches = new Set();
+    let rowSpecial = new Set(); // 横四连
+    let colSpecial = new Set(); // 竖四连
+    let rainbowSpecial = [];    // 五连
+
     // 横向
     for(let row = 0; row < size; row++) {
         let count = 1;
@@ -213,8 +252,21 @@ function checkMatches(isPreview = false) {
                 }
             } else {
                 if (count >= 3) for (let k = 1; k <= count; k++) matches.add(prev - (k - 1));
+                // 四连
+                if (!isPreview && count === 4) rowSpecial.add(row * size + col - 2);
+                // 五连及以上
+                if (!isPreview && count >= 5) {
+                    let rainbowIdx = row * size + col - Math.floor(count/2);
+                    rainbowSpecial.push({ index: rainbowIdx, fruit: board[rainbowIdx] });
+                }
                 count = 1;
             }
+        }
+        // 结尾四五连
+        if (!isPreview && count === 4) rowSpecial.add(row * size + size - 2);
+        if (!isPreview && count >= 5) {
+            let rainbowIdx = row * size + size - Math.floor(count/2) - 1;
+            rainbowSpecial.push({ index: rainbowIdx, fruit: board[rainbowIdx] });
         }
     }
     // 纵向
@@ -230,32 +282,80 @@ function checkMatches(isPreview = false) {
                 }
             } else {
                 if (count >= 3) for (let k = 1; k <= count; k++) matches.add(prev - (k - 1) * size);
+                // 四连
+                if (!isPreview && count === 4) colSpecial.add((row - 2) * size + col);
+                // 五连及以上
+                if (!isPreview && count >= 5) {
+                    let rainbowIdx = (row - Math.floor(count/2)) * size + col;
+                    rainbowSpecial.push({ index: rainbowIdx, fruit: board[rainbowIdx] });
+                }
                 count = 1;
             }
         }
+        if (!isPreview && count === 4) colSpecial.add((size - 2) * size + col);
+        if (!isPreview && count >= 5) {
+            let rainbowIdx = (size - Math.floor(count/2) - 1) * size + col;
+            rainbowSpecial.push({ index: rainbowIdx, fruit: board[rainbowIdx] });
+        }
     }
+
+    // 四连：整行/整列全消
+    if (!isPreview && (rowSpecial.size > 0 || colSpecial.size > 0)) {
+        let fullLine = new Set();
+        for(const idx of rowSpecial) {
+            let row = Math.floor(idx / size);
+            for(let col=0; col<size; col++) fullLine.add(row * size + col);
+        }
+        for(const idx of colSpecial) {
+            let col = idx % size;
+            for(let row=0; row<size; row++) fullLine.add(row * size + col);
+        }
+        fullLine.forEach(idx => matches.add(idx));
+        showLineEffect && showLineEffect([...rowSpecial], [...colSpecial]); // 可选特效
+    }
+
+    // 五连：生成五彩水果
+    if (!isPreview && rainbowSpecial.length > 0) {
+        for(const obj of rainbowSpecial) {
+            if (typeof specialTiles === 'object') {
+                specialTiles[obj.index] = { type: 'rainbow', fruit: obj.fruit, colorful: true };
+            }
+        }
+    }
+
     if (!isPreview && matches.size > 0) {
         // 消除动画
         const tiles = document.getElementsByClassName('tile');
         matches.forEach(idx => {
+            if (typeof specialTiles === 'object' && specialTiles[idx]?.type === 'rainbow') return;
             board[idx] = null;
             tiles[idx].textContent = '';
             tiles[idx].classList.add('eliminate');
         });
-        playAudio('eliminate');
+        playAudio && playAudio('eliminate');
         setTimeout(() => {
-            matches.forEach(idx => tiles[idx].classList.remove('eliminate'));
+            matches.forEach(idx => {
+                const tiles = document.getElementsByClassName('tile');
+                tiles[idx].classList.remove('eliminate');
+            });
         }, 400);
-        calculateScore(matches.size);
+        calculateScore && calculateScore(matches.size);
     }
-    return matches.size > 0;
+
+    // 五连后生成五彩水果
+    if (!isPreview && typeof createRainbowTile === 'function' && rainbowSpecial.length > 0) {
+        for(const obj of rainbowSpecial) {
+            createRainbowTile(obj.index, obj.fruit);
+        }
+    }
+
+    return matches.size > 0 || (!isPreview && rainbowSpecial.length > 0);
 }
 
-// 得分
 function calculateScore(cnt) {
     if (cnt >= 3) gameState.score += 20 * (cnt - 2);
     updateUI();
-    checkGameEnd(); // 立刻判断胜负
+    checkGameEnd();
 }
 
 // 下落补齐
@@ -290,6 +390,13 @@ function fillEmptyTiles() {
             setTimeout(fillEmptyTiles, 350);
         }
     }, 370);
+    // 每次补齐后检测是否无可消除
+    setTimeout(() => {
+        if (!gameIsOver) {
+            checkNoPossibleMove();
+        }
+    }, 400);
+    resetInactivityTimer();
 }
 
 // 随机水果
@@ -350,6 +457,20 @@ function disableBoard() {
     }
 }
 
+// 临时禁用棋盘（自动打乱时用）
+function disableBoardTemp() {
+    const tiles = document.getElementsByClassName('tile');
+    for (let i = 0; i < tiles.length; i++) {
+        tiles[i].style.pointerEvents = 'none';
+    }
+}
+function enableBoardTemp() {
+    const tiles = document.getElementsByClassName('tile');
+    for (let i = 0; i < tiles.length; i++) {
+        tiles[i].style.pointerEvents = '';
+    }
+}
+
 // 游戏结束模态框
 function showGameOverModal(isWin) {
     if (isWin) {
@@ -369,7 +490,6 @@ function showGameOverModal(isWin) {
 }
 
 // ------------ 道具实现 ---------------
-
 function updateToolBtns() {
     document.getElementById('shuffleCount').innerHTML = `<span class="tool-count-bg" style="background:#e84a5f;">${gameState.toolUsed.shuffle? '0':'1'}</span>`;
     document.getElementById('addStepCount').innerHTML = `<span class="tool-count-bg" style="background:#e84a5f;">${gameState.toolUsed.addStep? '0':'1'}</span>`;
@@ -377,7 +497,6 @@ function updateToolBtns() {
 
     document.getElementById('shuffleBtn').disabled = gameState.toolUsed.shuffle || gameIsOver || gameState.score < 50;
     document.getElementById('addStepBtn').disabled = gameState.toolUsed.addStep || gameIsOver || gameState.score < 70;
-    // 撤销不再扣分，所以无分数判断
     document.getElementById('undoBtn').disabled = gameState.toolUsed.undo || gameIsOver || !gameState.prevState;
 
     const tip = document.getElementById('shuffleTip');
@@ -386,7 +505,7 @@ function updateToolBtns() {
 
 // 打乱道具
 function shuffleBoard() {
-    if (gameState.shuffling || gameIsOver || gameState.toolUsed.shuffle) return;
+    if (gameState.shuffling || gameIsOver || gameState.toolUsed.shuffle || shufflePending) return;
     if (gameState.score < 50) {
         showToolTip('分数不足，无法打乱！');
         return;
@@ -440,7 +559,6 @@ function undoMove() {
         showToolTip('暂无可撤销的操作');
         return;
     }
-    // 不再扣分
     gameState.toolUsed.undo = true;
 
     gameState.board = [...gameState.prevState.board];
@@ -458,16 +576,6 @@ function undoMove() {
 }
 
 function showToolTip(msg) {
-    const tip = document.getElementById('shuffleTip');
-    if (!tip) return;
-    tip.textContent = msg;
-    tip.style.color = "#e84a5f";
-    setTimeout(() => {
-        tip.style.color = "#ff8b6a";
-        updateToolBtns();
-    }, 1800);
-}
-function showToolTip(msg) {
     const modal = document.getElementById('toolTipModal');
     const msgSpan = document.getElementById('toolTipModalMsg');
     if (!modal || !msgSpan) return;
@@ -476,13 +584,333 @@ function showToolTip(msg) {
     setTimeout(() => {
         modal.classList.remove('active');
         updateToolBtns();
-    }, 1000); // 1秒后关闭
+    }, 1000);
 }
 
 // 难度对应参数
-const size = 6; // 6x6、8x8、10x10等
-const tileSize = 52; // 或你想要的格子像素
+const size = 6;
+const tileSize = 52;
 
 const board = document.getElementById('board');
 board.style.setProperty('--board-size', size);
 board.style.setProperty('--tile-size', tileSize + 'px');
+
+// ===== 新增功能：自动提示、无可消除自动打乱、粒子背景 =====
+let inactivityTimer = null;
+let hintTiles = [];
+let hintActive = false;
+
+// 仅在点击后重置计时器
+function resetInactivityTimer() {
+    clearTimeout(inactivityTimer);
+    // 只要在游戏页面且未游戏结束，且无提示高亮时才重新计时
+    if (!gameIsOver && document.getElementById('gameScreen').classList.contains('active') && !hintActive) {
+        inactivityTimer = setTimeout(showHintIfPossible, 5000);
+    }
+}
+
+// 5秒未点击后提示
+function showHintIfPossible() {
+    let hint = findHint(gameState.board, gameState.size, gameState.difficulty);
+    if (hint && hint.length === 2) {
+        hintTiles = hint;
+        const tiles = document.getElementsByClassName('tile');
+        tiles[hint[0]].classList.add('selected');
+        tiles[hint[1]].classList.add('selected');
+        hintActive = true;
+    }
+}
+
+// 只有再次点击方块才消除提示
+function clearHintTiles() {
+    if (hintTiles.length) {
+        const tiles = document.getElementsByClassName('tile');
+        hintTiles.forEach(idx => tiles[idx] && tiles[idx].classList.remove('selected'));
+        hintTiles = [];
+    }
+    hintActive = false;
+}
+
+function findHint(board, size, difficulty) {
+    for (let i = 0; i < board.length; i++) {
+        const row = Math.floor(i / size), col = i % size;
+        const dirs = [[0, 1], [1, 0]];
+        for (let [dr, dc] of dirs) {
+            let nr = row + dr, nc = col + dc;
+            if (nr < size && nc < size) {
+                let ni = nr * size + nc;
+                [board[i], board[ni]] = [board[ni], board[i]];
+                if (checkMatchPreview(board, size)) {
+                    [board[i], board[ni]] = [board[ni], board[i]];
+                    return [i, ni];
+                }
+                [board[i], board[ni]] = [board[ni], board[i]];
+            }
+        }
+    }
+    return null;
+}
+
+function checkMatchPreview(board, size) {
+    for (let row = 0; row < size; row++) {
+        let count = 1;
+        for (let col = 1; col < size; col++) {
+            let cur = row * size + col;
+            let prev = row * size + (col - 1);
+            if (board[cur] && board[cur] === board[prev]) {
+                count++;
+                if (count >= 3 && col === size - 1) return true;
+            } else {
+                if (count >= 3) return true;
+                count = 1;
+            }
+        }
+    }
+    for (let col = 0; col < size; col++) {
+        let count = 1;
+        for (let row = 1; row < size; row++) {
+            let cur = row * size + col;
+            let prev = (row - 1) * size + col;
+            if (board[cur] && board[cur] === board[prev]) {
+                count++;
+                if (count >= 3 && row === size - 1) return true;
+            } else {
+                if (count >= 3) return true;
+                count = 1;
+            }
+        }
+    }
+    return false;
+}
+
+// 检测无可消除并自动打乱
+function checkNoPossibleMove() {
+    if (shufflePending || gameIsOver) return;
+    if (!findHint(gameState.board, gameState.size, gameState.difficulty)) {
+        shufflePending = true;
+        disableBoardTemp();
+        showToolTip('无可消除水果，重新打乱');
+        setTimeout(() => {
+            doBoardShuffleAnimation();
+            setTimeout(() => {
+                performAutoShuffle();
+                // 再次检测，如果还没有可消除，递归继续打乱
+                if (!findHint(gameState.board, gameState.size, gameState.difficulty)) {
+                    setTimeout(checkNoPossibleMove, 500);
+                } else {
+                    shufflePending = false;
+                    enableBoardTemp();
+                }
+            }, 600);
+        }, 1100);
+    }
+}
+
+// 打乱动画
+function doBoardShuffleAnimation() {
+    const tiles = document.getElementsByClassName('tile');
+    for (let i = 0; i < tiles.length; i++) {
+        tiles[i].classList.add('shuffle-anim');
+    }
+    setTimeout(() => {
+        for (let i = 0; i < tiles.length; i++) {
+            tiles[i].classList.remove('shuffle-anim');
+        }
+    }, 600);
+}
+
+// 真正打乱
+function performAutoShuffle() {
+    let arr = gameState.board.filter(x => x);
+    for (let i = arr.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    for (let i = 0; i < arr.length; i++) gameState.board[i] = arr[i];
+    const tiles = document.getElementsByClassName('tile');
+    for (let i = 0; i < arr.length; i++) {
+        tiles[i].textContent = arr[i];
+        tiles[i].classList.add('animate__flash');
+        setTimeout(() => tiles[i].classList.remove('animate__flash'), 400);
+    }
+}
+
+// 事件绑定
+document.addEventListener('DOMContentLoaded', function() {
+    // 只监听点击事件用于重置计时器
+    const gameScreen = document.getElementById('gameScreen');
+    if (gameScreen) {
+        gameScreen.addEventListener('mousedown', resetInactivityTimer, true);
+        gameScreen.addEventListener('touchstart', resetInactivityTimer, true);
+    }
+});
+// 取消setInterval定时检测（已用消除后自动检测实现）
+
+['mousedown', 'touchstart', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, resetInactivityTimer, true);
+});
+
+// ...（粒子背景与渐变背景等未动）...
+// ======= 粒子背景 =======
+(function () {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'particle-bg-canvas';
+    canvas.style.position = 'fixed';
+    canvas.style.top = 0;
+    canvas.style.left = 0;
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = 0;
+    document.body.appendChild(canvas);
+
+    let ctx = canvas.getContext('2d');
+    let w = window.innerWidth, h = window.innerHeight;
+
+    function resize() {
+        w = window.innerWidth;
+        h = window.innerHeight;
+        canvas.width = w;
+        canvas.height = h;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const COLORS = ['#fffbe0', '#ffd6e0', '#b8ceff', '#ffe3a3', '#A1FFE3'];
+    const PARTICLE_NUM = 48;
+    const particles = [];
+    for (let i = 0; i < PARTICLE_NUM; i++) {
+        particles.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            vx: 0.4 + Math.random() * 0.5,
+            vy: -0.1 + Math.random() * 0.2,
+            r: 1.8 + Math.random() * 2.8,
+            color: COLORS[Math.floor(Math.random() * COLORS.length)],
+            alpha: 0.15 + Math.random() * 0.15
+        });
+    }
+    function animate() {
+        ctx.clearRect(0, 0, w, h);
+        // 粒子
+        for (let i = 0; i < PARTICLE_NUM; i++) {
+            const p = particles[i];
+            ctx.globalAlpha = p.alpha;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.x > w + 30) p.x = -10, p.y = Math.random() * h;
+            if (p.y < -20 || p.y > h + 20) p.y = Math.random() * h;
+        }
+        // 连线
+        ctx.globalAlpha = 0.08;
+        for (let i = 0; i < PARTICLE_NUM; i++) {
+            for (let j = i + 1; j < PARTICLE_NUM; j++) {
+                let dx = particles[i].x - particles[j].x;
+                let dy = particles[i].y - particles[j].y;
+                let dist = dx * dx + dy * dy;
+                if (dist < 3800) {
+                    ctx.beginPath();
+                    ctx.moveTo(particles[i].x, particles[i].y);
+                    ctx.lineTo(particles[j].x, particles[j].y);
+                    ctx.strokeStyle = '#ffadc2';
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                }
+            }
+        }
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(animate);
+    }
+    animate();
+})();
+
+// ========== 柔和渐变动态背景 ==========
+(function softGradientBG() {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'soft-gradient-bg';
+    canvas.style.position = 'fixed';
+    canvas.style.top = 0;
+    canvas.style.left = 0;
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = 0;
+    document.body.appendChild(canvas);
+
+    let ctx = canvas.getContext('2d');
+    let w = window.innerWidth, h = window.innerHeight;
+
+    function resize() {
+        w = window.innerWidth;
+        h = window.innerHeight;
+        canvas.width = w;
+        canvas.height = h;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // 多个彩色渐变气泡，随时间漂浮
+    const bubbleNum = 7;
+    const bubbles = [];
+    const palette = [
+        ['#ffe3ee', '#ffe3a3'],
+        ['#b8ceff', '#f3ffe2'],
+        ['#ffd6e0', '#fffbe0'],
+        ['#fffbe0', '#A1FFE3'],
+        ['#ffd6e0', '#b8ceff'],
+        ['#f3ffe2', '#ffb8d1'],
+        ['#fffbe0', '#b8ceff']
+    ];
+    for (let i = 0; i < bubbleNum; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let speed = 0.12 + Math.random() * 0.09;
+        let r = 180 + Math.random() * 120;
+        let colorIdx = Math.floor(Math.random() * palette.length);
+        bubbles.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            r,
+            dx: Math.cos(angle) * speed,
+            dy: Math.sin(angle) * speed,
+            color1: palette[colorIdx][0],
+            color2: palette[colorIdx][1],
+            alpha: 0.14 + Math.random() * 0.11,
+            phase: Math.random() * Math.PI * 2
+        });
+    }
+    function animate() {
+        ctx.clearRect(0, 0, w, h);
+        for (let i = 0; i < bubbleNum; i++) {
+            const b = bubbles[i];
+            b.x += b.dx * (1.1 + Math.sin(Date.now()/4200 + b.phase) * 0.14);
+            b.y += b.dy * (1.1 + Math.cos(Date.now()/3000 + b.phase) * 0.1);
+            if (b.x < -b.r) b.x = w + b.r * 0.5;
+            if (b.x > w + b.r) b.x = -b.r * 0.5;
+            if (b.y < -b.r) b.y = h + b.r * 0.5;
+            if (b.y > h + b.r) b.y = -b.r * 0.5;
+            let grad = ctx.createRadialGradient(
+                b.x, b.y, b.r*0.38, b.x, b.y, b.r
+            );
+            grad.addColorStop(0, b.color1);
+            grad.addColorStop(1, b.color2);
+            ctx.globalAlpha = b.alpha;
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(animate);
+    }
+    animate();
+})();
+
+// ===== END =====
+
+// ===== END =====
+
