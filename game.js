@@ -1,13 +1,13 @@
 // 难度与水果
 const difficulties = {
     easy:   { moves: 20, target: 500 },
-    medium: { moves: 20, target: 750 },
-    hard:   { moves: 20, target: 1100 }
+    medium: { moves: 22, target: 750 },
+    hard:   { moves: 25, target: 1000 }
 };
 const FRUITS = {
     easy:   ['🍎', '🍌', '🍒', '🍇', '🍉', '🥑'],
-    medium: ['🍎', '🍌', '🍒', '🍇', '🍉', '🥑' , '🍓','🥥'],
-    hard:   ['🍎', '🍌', '🍒', '🍇', '🍉','🥑', '🍓','🥝','🥥', '🍊', '🍈']
+    medium: ['🍎', '🍌', '🍒', '🍇', '🍉', '🥑' , '🍓', '🥥'],
+    hard:   ['🍎', '🍌', '🍒', '🍇', '🍉','🥑','🥝', '🍊', '🍈']
 };
 
 let gameState = {
@@ -219,12 +219,150 @@ function createFiveLineTile(idx, fruit) {
     }, 450);
 }
 
+// ----------- 四连L/T型检测 -------------
+function getLTMatches(board, size, matchesSet) {
+    // 返回所有L型和T型的中心点和组成的格子
+    // 只找未被已有matchesSet包含的L/T型
+    let bonusMatches = [];
+    for (let row = 0; row < size; row++) {
+        for (let col = 0; col < size; col++) {
+            let idx = row * size + col;
+            let center = board[idx];
+            if (!center) continue;
+
+            // 检查T型 (上+左+右)
+            if (row >= 1 && col >= 1 && col < size-1) {
+                let up = (row-1)*size+col;
+                let left = row*size+col-1;
+                let right = row*size+col+1;
+                if (
+                    board[up] === center &&
+                    board[left] === center &&
+                    board[right] === center &&
+                    !matchesSet.has(idx) && !matchesSet.has(up) &&
+                    !matchesSet.has(left) && !matchesSet.has(right)
+                ) {
+                    bonusMatches.push([idx, up, left, right]);
+                }
+            }
+            // T型 (下+左+右)
+            if (row < size-1 && col >= 1 && col < size-1) {
+                let down = (row+1)*size+col;
+                let left = row*size+col-1;
+                let right = row*size+col+1;
+                if (
+                    board[down] === center &&
+                    board[left] === center &&
+                    board[right] === center &&
+                    !matchesSet.has(idx) && !matchesSet.has(down) &&
+                    !matchesSet.has(left) && !matchesSet.has(right)
+                ) {
+                    bonusMatches.push([idx, down, left, right]);
+                }
+            }
+            // T型 (左+上+下)
+            if (col >= 1 && row >= 1 && row < size-1) {
+                let left = row*size+col-1;
+                let up = (row-1)*size+col;
+                let down = (row+1)*size+col;
+                if (
+                    board[left] === center &&
+                    board[up] === center &&
+                    board[down] === center &&
+                    !matchesSet.has(idx) && !matchesSet.has(left) &&
+                    !matchesSet.has(up) && !matchesSet.has(down)
+                ) {
+                    bonusMatches.push([idx, left, up, down]);
+                }
+            }
+            // T型 (右+上+下)
+            if (col < size-1 && row >= 1 && row < size-1) {
+                let right = row*size+col+1;
+                let up = (row-1)*size+col;
+                let down = (row+1)*size+col;
+                if (
+                    board[right] === center &&
+                    board[up] === center &&
+                    board[down] === center &&
+                    !matchesSet.has(idx) && !matchesSet.has(right) &&
+                    !matchesSet.has(up) && !matchesSet.has(down)
+                ) {
+                    bonusMatches.push([idx, right, up, down]);
+                }
+            }
+            // L型各方向
+            // 右下L
+            if (col < size-1 && row < size-1) {
+                let right = row*size+col+1;
+                let down = (row+1)*size+col;
+                let diag = (row+1)*size+col+1;
+                if (
+                    board[right] === center &&
+                    board[down] === center &&
+                    board[diag] === center &&
+                    !matchesSet.has(idx) && !matchesSet.has(right) &&
+                    !matchesSet.has(down) && !matchesSet.has(diag)
+                ) {
+                    bonusMatches.push([idx, right, down, diag]);
+                }
+            }
+            // 左下L
+            if (col > 0 && row < size-1) {
+                let left = row*size+col-1;
+                let down = (row+1)*size+col;
+                let diag = (row+1)*size+col-1;
+                if (
+                    board[left] === center &&
+                    board[down] === center &&
+                    board[diag] === center &&
+                    !matchesSet.has(idx) && !matchesSet.has(left) &&
+                    !matchesSet.has(down) && !matchesSet.has(diag)
+                ) {
+                    bonusMatches.push([idx, left, down, diag]);
+                }
+            }
+            // 右上L
+            if (col < size-1 && row > 0) {
+                let right = row*size+col+1;
+                let up = (row-1)*size+col;
+                let diag = (row-1)*size+col+1;
+                if (
+                    board[right] === center &&
+                    board[up] === center &&
+                    board[diag] === center &&
+                    !matchesSet.has(idx) && !matchesSet.has(right) &&
+                    !matchesSet.has(up) && !matchesSet.has(diag)
+                ) {
+                    bonusMatches.push([idx, right, up, diag]);
+                }
+            }
+            // 左上L
+            if (col > 0 && row > 0) {
+                let left = row*size+col-1;
+                let up = (row-1)*size+col;
+                let diag = (row-1)*size+col-1;
+                if (
+                    board[left] === center &&
+                    board[up] === center &&
+                    board[diag] === center &&
+                    !matchesSet.has(idx) && !matchesSet.has(left) &&
+                    !matchesSet.has(up) && !matchesSet.has(diag)
+                ) {
+                    bonusMatches.push([idx, left, up, diag]);
+                }
+            }
+        }
+    }
+    return bonusMatches;
+}
+
 function checkMatches(isPreview = false) {
     const { board, size } = gameState;
     let matches = new Set();
     let rowSpecial = new Set();
     let colSpecial = new Set();
     let fiveLineSpecial = [];
+
     // 横向
     for(let row = 0; row < size; row++) {
         let count = 1;
@@ -279,6 +417,7 @@ function checkMatches(isPreview = false) {
             fiveLineSpecial.push(mid);
         }
     }
+
     // 四连：整行/整列全消
     if (!isPreview && (rowSpecial.size > 0 || colSpecial.size > 0)) {
         let fullLine = new Set();
@@ -293,6 +432,16 @@ function checkMatches(isPreview = false) {
         fullLine.forEach(idx => matches.add(idx));
         showLineEffect && showLineEffect([...rowSpecial], [...colSpecial]);
     }
+
+    // 检查L/T型四连
+    let bonus4Matches = [];
+    if (!isPreview) {
+        bonus4Matches = getLTMatches(board, size, matches);
+        for (const group of bonus4Matches) {
+            for (const idx of group) matches.add(idx);
+        }
+    }
+
     // 五连：以最中间那个点的行列全部消除
     if (!isPreview && fiveLineSpecial.length > 0) {
         let fullCross = new Set();
@@ -320,7 +469,8 @@ function checkMatches(isPreview = false) {
                 tiles[idx].classList.remove('eliminate');
             });
         }, 400);
-        calculateScore && calculateScore(matches.size);
+        // 传递bonus4Matches给得分
+        calculateScore && calculateScore(matches.size, bonus4Matches.length);
     }
     return matches.size > 0 || (!isPreview && fiveLineSpecial.length > 0);
 }
@@ -345,8 +495,18 @@ function showLineEffect(rowSpecialArr, colSpecialArr) {
     }
 }
 
-function calculateScore(cnt) {
-    if (cnt >= 3) gameState.score += 20 * (cnt - 2);
+// ----------- 新增：四连奖励更高 -----------
+function calculateScore(cnt, extraFourShapes = 0) {
+    let score = 0;
+    if (cnt >= 3) score = 20 * (cnt - 2);
+    // 额外奖励：每组L/T型四连+40分
+    if (extraFourShapes && extraFourShapes > 0) {
+        score += extraFourShapes * 40;
+    }
+    // 额外奖励：如果cnt >=8（整排/列）加分再多一点
+    if (cnt >= 8) score += 30; // 整排/列
+    if (cnt >= 12) score += 80; // 十字五连奖励
+    gameState.score += score;
     updateUI();
     checkGameEnd();
 }
@@ -476,30 +636,35 @@ function shuffleBoard() {
         return;
     }
     gameState.toolUsed.shuffle = true;
-    playAudio('shuffleBoard');
-    let arr = gameState.board.filter(x=>x);
-    for (let i = arr.length - 1; i > 0; i--) {
-        let j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    for(let i=0;i<arr.length;i++) gameState.board[i]=arr[i];
-    const tiles = document.getElementsByClassName('tile');
-    for(let i=0;i<arr.length;i++) {
-        tiles[i].textContent = arr[i];
-        tiles[i].classList.add('animate__flash');
-        setTimeout(() => tiles[i].classList.remove('animate__flash'), 400);
-    }
-    gameState.score -= 50;
-    if (gameState.score < 0) gameState.score = 0;
-    updateUI();
-    setTimeout(()=>{
-        if (checkMatches()) {
-            setTimeout(fillEmptyTiles, 360);
+
+    // 打乱前播放特效和音效
+    doBoardShuffleAnimation(); // 动画+音效
+    setTimeout(() => {
+        let arr = gameState.board.filter(x=>x);
+        for (let i = arr.length - 1; i > 0; i--) {
+            let j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
         }
-        gameState.shuffling = false;
-        updateToolBtns();
-    }, 400);
+        for(let i=0;i<arr.length;i++) gameState.board[i]=arr[i];
+        const tiles = document.getElementsByClassName('tile');
+        for(let i=0;i<arr.length;i++) {
+            tiles[i].textContent = arr[i];
+            tiles[i].classList.add('animate__flash');
+            setTimeout(() => tiles[i].classList.remove('animate__flash'), 400);
+        }
+        gameState.score -= 50;
+        if (gameState.score < 0) gameState.score = 0;
+        updateUI();
+        setTimeout(()=>{
+            if (checkMatches()) {
+                setTimeout(fillEmptyTiles, 360);
+            }
+            gameState.shuffling = false;
+            updateToolBtns();
+        }, 400);
+    }, 600); // 动画时长和doBoardShuffleAnimation一致
 }
+
 function addStep() {
     if (gameState.toolUsed.addStep || gameIsOver) return;
     if (gameState.score < 70) {
@@ -553,7 +718,7 @@ let hintActive = false;
 function resetInactivityTimer() {
     clearTimeout(inactivityTimer);
     if (!gameIsOver && document.getElementById('gameScreen').classList.contains('active') && !hintActive) {
-        inactivityTimer = setTimeout(showHintIfPossible, 5000);
+        inactivityTimer = setTimeout(showHintIfPossible, 10000);
     }
 }
 function showHintIfPossible() {
